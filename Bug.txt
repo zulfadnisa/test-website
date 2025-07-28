@@ -10,9 +10,8 @@ if response.status_code == 200:
         results.append(f"⚠️ Aktif tapi isi error: {url}")
     else:
         results.append(f"✅ Aktif: {url}")
-
--  Simpan hasil ke file csv kalua datanya banyak di telegram bisa.
 Bug di code -> kirim email
 hasil report
-4. Notifikasi hanya jika ada perubahan
+3. Simpan Status Sebelumnya → Deteksi Perubahan (Up ⇄ Down)
 5. Bisa tambahkan statistik "berubah dari status sebelumnya" (kalau kamu ingin sistem pintar)
+- Dashboard atau grafik historis
