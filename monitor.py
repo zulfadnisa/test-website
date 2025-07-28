@@ -4,6 +4,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
+import random
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -21,6 +22,22 @@ HEADERS = {
     "DNT": "1",  # Do Not Track
     "Cache-Control": "no-cache"
 }
+USER_AGENTS = [
+    # Chrome
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+
+    # Firefox
+    "Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0",
+    "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/99.0",
+
+    # Safari
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+
+    # Mobile
+    "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1"
+]
 MAX_WORKERS = 6
 
 # === FUNCTION ===
@@ -36,21 +53,35 @@ def load_urls_from_file():
             urls.append(url)
     return urls
 
+def get_random_headers():
+    return {
+        "User-Agent": random.choice(USER_AGENTS), #biar ga dianggap bot/spam oleh server
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Upgrade-Insecure-Requests": "1",
+        "Connection": "keep-alive",
+        "DNT": "1",  # Do Not Track
+        "Cache-Control": "no-cache"
+    }
+
 def try_request(url):
-    delay = 2
+    # delay = 2
     retries = 1
+    timeouts = [10, 15]
+
 
     for attempt in range(retries + 1):
-        timeoutVal = 10 if attempt == 0 else 15
         try:
-            response = requests.get(url, headers=HEADERS, timeout=timeoutVal) #30 detik kalau di uptimerobot
+            timeout = timeouts[min(attempt, len(timeouts)-1)]
+            response = requests.get(url, headers=get_random_headers(), timeout=timeout) #30 detik kalau di uptimerobot
             if response.status_code in [403, 503] and attempt < retries:
-                time.sleep(delay)
+                time.sleep(1)
                 continue
             return response
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             if attempt < retries:
-                time.sleep(delay)
+                time.sleep(1)
+                continue
             else:
                 raise
 
@@ -145,6 +176,8 @@ def create_report(duration,total_urls,counters,results):
             f.write("\n".join(results))
 
         send_telegram_file("log.txt", caption="📝 Log Error Lengkap")
+        if os.path.exists("log.txt"):
+            os.remove("log.txt")
     else:
         detail = "\n".join(results)
         send_telegram(f"{header}\n{detail}")
