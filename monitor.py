@@ -27,7 +27,7 @@ def send_telegram(message):
 
 def check_websites(urls):
     results = []
-    totalSuccess = 0
+    total_success = 0
 
     for url in urls:
         try:
@@ -35,7 +35,7 @@ def check_websites(urls):
             status_code = response.status_code
 
             if status_code == 200 :
-                totalSuccess+=1
+                total_success+=1
             else:
                 results.append(f"⚠️ {url} - Gagal Akses ({status_code})")
         except requests.exceptions.Timeout:
@@ -47,7 +47,7 @@ def check_websites(urls):
         except requests.exceptions.RequestException as e:
             results.append(f"⚠️ {url} - Gagal Akses ({type(e).__name__})")
 
-    return results,totalSuccess
+    return results,total_success
 
 def load_urls_from_file():
     urls = []
@@ -77,7 +77,7 @@ def main():
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
 
     result_msg = "\n".join(results)
-    if len(results) == 0 and len(total_success) == len(urls):
+    if len(results) == 0 and total_success == len(urls):
         result_msg = "\n ✅ Semua URL Berjalan/OK (200)"
     
     end_time = time.time()
