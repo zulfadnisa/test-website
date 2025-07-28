@@ -15,3 +15,11 @@ hasil report
 3. Simpan Status Sebelumnya → Deteksi Perubahan (Up ⇄ Down)
 5. Bisa tambahkan statistik "berubah dari status sebelumnya" (kalau kamu ingin sistem pintar)
 - Dashboard atau grafik historis
+4. 💡 Gunakan library yang bisa simulasi browser (kalau perlu)
+Kalau masih diblok, kamu bisa pakai:
+
+httpx — lebih powerful dari requests
+
+undetected-chromedriver — jalanin Chrome headless (berat)
+
+[cloudscraper] — library ringan khusus untuk lewati Cloudflare (tapi kadang tak stabil di GitHub Actions)
