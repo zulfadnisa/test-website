@@ -1,6 +1,8 @@
 import os
 import requests
 from datetime import datetime
+from zoneinfo import ZoneInfo
+import time
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -25,12 +27,16 @@ def send_telegram(message):
 
 def check_websites(urls):
     results = []
+    totalSuccess = 0
+
     for url in urls:
         try:
             response = requests.get(url, timeout=10)
             status_code = response.status_code
 
-            if status_code != 200:
+            if status_code == 200 :
+                totalSuccess+=1
+            else:
                 results.append(f"⚠️ {url} - Gagal Akses ({status_code})")
         except requests.exceptions.Timeout:
             results.append(f"❌ {url} - DOWN (Timeout)")
@@ -41,9 +47,7 @@ def check_websites(urls):
         except requests.exceptions.RequestException as e:
             results.append(f"⚠️ {url} - Gagal Akses ({type(e).__name__})")
 
-    if len(results) == 0:
-        results.append("✅ Semua URL Berjalan/OK (200)")
-    return results
+    return results,totalSuccess
 
 def load_urls_from_file():
     urls = []
@@ -61,11 +65,25 @@ def main():
     if TELEGRAM_TOKEN is None or CHAT_ID is None:
         print("❌ TELEGRAM_TOKEN atau CHAT_ID tidak ditemukan.")
         return
- 
+    
+    start_time = time.time()
+    
     urls = load_urls_from_file()
-    results = check_websites(urls)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    message = f"🌐 Website Monitoring Result\n🕒 {timestamp}\n\n" + "\n".join(results)
+    total_url = len(urls)
+
+    results,total_success = check_websites(urls)
+    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+
+    result_msg = "\n".join(results)
+    if len(results) == 0 and len(total_success) == len(urls):
+        result_msg = "\n ✅ Semua URL Berjalan/OK (200)"
+    
+    end_time = time.time()
+    duration = end_time - start_time
+
+    message = f"🌐 Website Monitoring Result\n🕒 {timestamp}\n" + f"⏱️ Durasi: {duration:.2f} detik\n"+f"\n Success: {total_success}/{total_url}\n\n" + result_msg
+
     send_telegram(message)
 
 
