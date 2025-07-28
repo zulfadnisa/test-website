@@ -3,6 +3,7 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
+from concurrent.futures import ThreadPoolExecutor #pararel
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -37,7 +38,11 @@ def try_request(url):
     for attempt in range(retries + 1):
         timeoutVal = 10 if attempt == 0 else 15
         try:
-            return requests.get(url, headers=HEADERS, timeout=timeoutVal) #30 detik kalau di uptimerobot
+            response = requests.get(url, headers=HEADERS, timeout=timeoutVal) #30 detik kalau di uptimerobot
+            if response.status_code in [403, 503] and attempt < retries:
+                time.sleep(delay)
+                continue
+            return response
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             if attempt < retries:
                 time.sleep(delay)
