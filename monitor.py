@@ -14,7 +14,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 #     "https://adik.cirebonkab.go.id/",
 #     "https://socakaton.cirebonkab.go.id"
 # ]
-FILENAME = "urls200.txt"
+FILENAME = "urls10.txt"
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
