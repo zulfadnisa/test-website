@@ -1,7 +1,9 @@
-import requests
 import os
+import requests
 
 # === KONFIGURASI ===
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 URLS = [
     "https://bappeda.cirebonkab.go.id/",
     "https://distan.cirebonkab.go.id/",
@@ -9,9 +11,6 @@ URLS = [
     "https://adik.cirebonkab.go.id/",
     "https://socakaton.cirebonkab.go.id"
 ]
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
