@@ -14,7 +14,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 #     "https://adik.cirebonkab.go.id/",
 #     "https://socakaton.cirebonkab.go.id"
 # ]
-FILENAME = "urls10.txt"
+FILENAME = "urls50.txt"
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -29,19 +29,34 @@ def check_websites(urls):
     results = []
     total_success = 0
 
+    headers = {
+        "User-Agent": 
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/115.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    }
+
     for url in urls:
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url,headers=headers, timeout=10)
             status_code = response.status_code
 
+            # if 200 <= status_code < 400 :
+            #     total_success+=1
             if status_code == 200 :
                 total_success+=1
+            elif status_code == 403:
+                results.append(f"❌ {url} - Error Forbidden (403)")
             else:
-                results.append(f"⚠️ {url} - Gagal Akses ({status_code})")
+                results.append(f"❓ {url} - Error ({status_code})")
         except requests.exceptions.Timeout:
-            results.append(f"❌ {url} - DOWN (Timeout)")
+            results.append(f"❌ {url} - Timeout")
         except requests.exceptions.ConnectionError:
-            results.append(f"❌ {url} - DOWN (Connection Error)")
+            results.append(f"❌ {url} - Connection Error")
         except requests.exceptions.TooManyRedirects:
             results.append(f"⚠️ {url} - Gagal Akses (Terlalu banyak redirect)")
         except requests.exceptions.RequestException as e:
@@ -83,7 +98,7 @@ def main():
     end_time = time.time()
     duration = end_time - start_time
 
-    message = f"🌐 Website Monitoring Result\n🕒 {timestamp}\n" + f"⏱️ Durasi: {duration:.2f} detik\n"+f"\n Success: {total_success}/{total_url}\n\n" + result_msg
+    message = f"🌐 Website Monitoring Result\n🕒 {timestamp}\n" + f"⏱️ Durasi: {duration:.2f} detik\n"+f"Success: {total_success}/{total_url}\n\n" + result_msg
 
     print('TESTING TOTAL SUCCESS:', total_success)
     print('TESTING TOTAL ERROR:', len(results))
