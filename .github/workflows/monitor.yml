@@ -1,29 +1,8 @@
-# name: Website Monitor
-
-# on:
-#   schedule:
-#     - cron: "*/60 * * * *"  # Tiap 60 menit
-#   workflow_dispatch:  # Bisa dijalankan manual juga
-
-# jobs:
-#   monitor:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v3
-#       - name: Setup Python
-#         uses: actions/setup-python@v4
-#         with:
-#           python-version: "3.x"
-#       - name: Install dependencies
-#         run: pip install requests
-#       - name: Run script
-#         run: python monitor.py
-
 name: Website Monitor
 
 on:
   schedule:
-    - cron: "*/60 * * * *"
+    - cron: "*/300 * * * *"
   workflow_dispatch:
 
 jobs:

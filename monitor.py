@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-FILENAME = "urls200.txt"
+FILENAME = "urls.txt"
 HEADERS = {
     "User-Agent": 
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -21,7 +21,7 @@ HEADERS = {
     "DNT": "1",  # Do Not Track
     "Cache-Control": "no-cache"
 }
-MAX_WORKERS = 8
+MAX_WORKERS = 6
 
 # === FUNCTION ===
 def load_urls_from_file():
@@ -113,6 +113,7 @@ def send_telegram(message):
         print("✅ Notifikasi berhasil dikirim.", response.status_code, response.text)
     except Exception as e:
         print(f"❌ Gagal mengirim notifikasi ke Telegram: {e}")
+
 def send_telegram_file(filename, caption="Log"):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
     with open(filename, 'rb') as f:

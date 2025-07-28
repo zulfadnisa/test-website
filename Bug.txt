@@ -11,6 +11,8 @@ if response.status_code == 200:
     else:
         results.append(f"✅ Aktif: {url}")
 
-
+-  Simpan hasil ke file csv kalua datanya banyak di telegram bisa.
 Bug di code -> kirim email
 hasil report
+4. Notifikasi hanya jika ada perubahan
+5. Bisa tambahkan statistik "berubah dari status sebelumnya" (kalau kamu ingin sistem pintar)
