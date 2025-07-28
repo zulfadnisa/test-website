@@ -21,7 +21,7 @@ HEADERS = {
     "DNT": "1",  # Do Not Track
     "Cache-Control": "no-cache"
 }
-MAX_WORKERS = 20
+MAX_WORKERS = 8
 
 # === FUNCTION ===
 def load_urls_from_file():
