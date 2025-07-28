@@ -113,27 +113,22 @@ def send_telegram(message):
         print("✅ Notifikasi berhasil dikirim.", response.status_code, response.text)
     except Exception as e:
         print(f"❌ Gagal mengirim notifikasi ke Telegram: {e}")
+def send_telegram_file(filename, caption="Log"):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    with open(filename, 'rb') as f:
+        files = {'document': f}
+        data = {'chat_id': CHAT_ID, 'caption': caption}
+        requests.post(url, data=data, files=files)
 
-def main():
-    if TELEGRAM_TOKEN is None or CHAT_ID is None:
-        print("❌ TELEGRAM_TOKEN atau CHAT_ID tidak ditemukan.")
-        return
-    
-    start_time = time.time()
-
-    urls = load_urls_from_file()
-    results, counters = check_websites_parallel(urls)
-    end_time = time.time()
-    duration = end_time - start_time
-
+def create_report(duration,total_urls,counters,results):
     now = datetime.now(ZoneInfo("Asia/Jakarta"))
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     header = (
         f"📡 Website Monitor\n"
         f"📅 {timestamp}\n"
         f"⏱️ Durasi: {duration:.2f} detik\n\n"
-        f"✅ Aktif: {counters['success']}/{len(urls)}\n"
-        f"❌ Bermasalah: {len(urls) - counters['success']}\n"
+        f"✅ Aktif: {counters['success']}/{total_urls}\n"
+        f"❌ Bermasalah: {total_urls - counters['success']}\n"
         f"  ⏰ Timeout: {counters['timeout']}\n"
         f"  ❓ ConnError: {counters['conn_error']}\n"
         f"  ⛔ Bot-block: {counters['bot_block']}\n"
@@ -141,9 +136,32 @@ def main():
         f"  ⚠️ Error lain: {counters['other_error'] + counters['error']}\n"
     )
 
-    detail = "\n".join(results)
-    message = f"{header}\n{detail[:4000]}"  # Telegram limit
-    send_telegram(message)
+    error_count = len(results)  # Jumlah error
+    if error_count > 10:
+        send_telegram(f"{header}\n⚠️ Terlalu banyak error ({error_count}). Detail dikirim sebagai file log.")
+
+        with open("log.txt", "w", encoding="utf-8") as f:
+            f.write("\n".join(results))
+
+        send_telegram_file("log.txt", caption="📝 Log Error Lengkap")
+    else:
+        detail = "\n".join(results)
+        send_telegram(f"{header}\n{detail}")
+
+def main():
+    if TELEGRAM_TOKEN is None or CHAT_ID is None:
+        print("❌ TELEGRAM_TOKEN atau CHAT_ID tidak ditemukan.")
+        return
+    
+    start_time = time.time()
+    urls = load_urls_from_file()
+    total_urls = len(urls)
+    results, counters = check_websites_parallel(urls)
+    end_time = time.time()
+    duration = end_time - start_time
+
+    create_report(duration,total_urls,counters,results)
+
 
 # === RUN CODE ===
 if __name__ == "__main__":
