@@ -70,6 +70,7 @@ def main():
     
     urls = load_urls_from_file()
     total_url = len(urls)
+    print('TESTING TOTAL URL'+total_url)
 
     results,total_success = check_websites(urls)
     now = datetime.now(ZoneInfo("Asia/Jakarta"))
@@ -84,6 +85,9 @@ def main():
 
     message = f"🌐 Website Monitoring Result\n🕒 {timestamp}\n" + f"⏱️ Durasi: {duration:.2f} detik\n"+f"\n Success: {total_success}/{total_url}\n\n" + result_msg
 
+    print('TESTING TOTAL SUCCES'+total_success)
+    print('TESTING TOTAL ERROR'+len(results))
+    print('TESTING DURATION'+duration)
     send_telegram(message)
 
 
