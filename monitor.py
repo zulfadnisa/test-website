@@ -27,7 +27,7 @@ def check_websites(urls):
     results = []
     for url in urls:
         try:
-            response = requests.get(url, timeout=300)
+            response = requests.get(url, timeout=10)
             status_code = response.status_code
 
             if status_code != 200:

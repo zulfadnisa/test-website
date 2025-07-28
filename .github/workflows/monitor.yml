@@ -2,7 +2,7 @@
 
 # on:
 #   schedule:
-#     - cron: "*/5 * * * *"  # Tiap 5 menit
+#     - cron: "*/30 * * * *"  # Tiap 5 menit
 #   workflow_dispatch:  # Bisa dijalankan manual juga
 
 # jobs:
