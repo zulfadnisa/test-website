@@ -22,15 +22,6 @@ def send_telegram(message):
     except Exception as e:
         print(f"❌ Gagal mengirim notifikasi ke Telegram: {e}")
 
-# def check_websites():
-#     for url in URLS:
-#         try:
-#             response = requests.get(url, timeout=10)
-#             if response.status_code != 200:
-#                 send_telegram(f"⚠️ Website DOWN: {url} (Status {response.status_code})")
-#         except Exception as e:
-#             send_telegram(f"🚨 Gagal akses {url}: {e}")
-
 def check_websites():
     results = []
     for url in URLS:
