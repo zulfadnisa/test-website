@@ -37,26 +37,24 @@ def check_websites(urls):
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1"
+        "Upgrade-Insecure-Requests": "1",
+        "DNT": "1",  # Do Not Track
+        "Cache-Control": "no-cache"
     }
 
     for url in urls:
         try:
-            response = requests.get(url,headers=headers, timeout=10)
+            response = requests.get(url,headers=headers, timeout=30) #30 detik kalau di uptimerobot
             status_code = response.status_code
 
-            # if 200 <= status_code < 400 :
-            #     total_success+=1
-            if status_code == 200 :
+            if 200 <= status_code < 400 :
                 total_success+=1
-            elif status_code == 403:
-                results.append(f"❌ {url} - Error Forbidden (403)")
             else:
-                results.append(f"❓ {url} - Error ({status_code})")
+                results.append(f"❌ {url} - Error ({status_code})")
         except requests.exceptions.Timeout:
-            results.append(f"❌ {url} - Timeout")
+            results.append(f"❓ {url} - Timeout")
         except requests.exceptions.ConnectionError:
-            results.append(f"❌ {url} - Connection Error")
+            results.append(f"❓ {url} - Connection Error")
         except requests.exceptions.TooManyRedirects:
             results.append(f"⚠️ {url} - Gagal Akses (Terlalu banyak redirect)")
         except requests.exceptions.RequestException as e:
