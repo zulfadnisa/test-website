@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-FILENAME = "urls50.txt"
+FILENAME = "urls200.txt"
 HEADERS = {
     "User-Agent": 
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -104,37 +104,6 @@ def check_websites_parallel(urls):
                 results.append(f"{icon} {url} - {message}")
 
     return results, counters
-
-# def check_websites(urls):
-#     results = []
-#     total_success = 0
-#     total_timeout = 0
-
-#     for url in urls:
-#         try:
-#             response = try_request(url)
-#             status_code = response.status_code
-
-#             if 200 <= status_code < 400 :
-#                 total_success+=1
-#             elif status_code == 403:
-#                 if "cloudflare" in response.text.lower() or "access denied" in response.text.lower():
-#                     results.append(f"❌ {url} - Bot-blocked (403)")
-#                 else:
-#                     results.append(f"❌ {url} - Akses ditolak (403)")
-#             else:
-#                 results.append(f"❌ {url} - Error ({status_code})")
-#         except requests.exceptions.Timeout:
-#             results.append(f"⏰ {url} - Timeout")
-#             total_timeout+=1
-#         except requests.exceptions.ConnectionError:
-#             results.append(f"❓ {url} - Connection Error")
-#         except requests.exceptions.TooManyRedirects:
-#             results.append(f"⚠️ {url} - Gagal Akses (Terlalu banyak redirect)")
-#         except requests.exceptions.RequestException as e:
-#             results.append(f"⚠️ {url} - Gagal Akses ({type(e).__name__})")
-
-#     return results,total_success,total_timeout
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
