@@ -3,7 +3,7 @@ import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import time
-from concurrent.futures import ThreadPoolExecutor #pararel
+from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -22,14 +22,18 @@ HEADERS = {
     "Cache-Control": "no-cache"
 }
 
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message}
-    try:
-        response = requests.post(url, data=data)
-        print("✅ Notifikasi berhasil dikirim.", response.status_code, response.text)
-    except Exception as e:
-        print(f"❌ Gagal mengirim notifikasi ke Telegram: {e}")
+# === FUNCTION ===
+def load_urls_from_file():
+    urls = []
+    with open(FILENAME, "r") as file:
+        for line in file:
+            url = line.strip()
+            if not url:
+                continue
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+            urls.append(url)
+    return urls
 
 def try_request(url):
     delay = 2
@@ -80,17 +84,14 @@ def check_websites(urls):
 
     return results,total_success,total_timeout
 
-def load_urls_from_file():
-    urls = []
-    with open(FILENAME, "r") as file:
-        for line in file:
-            url = line.strip()
-            if not url:
-                continue
-            if not url.startswith("http://") and not url.startswith("https://"):
-                url = "https://" + url
-            urls.append(url)
-    return urls
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": message}
+    try:
+        response = requests.post(url, data=data)
+        print("✅ Notifikasi berhasil dikirim.", response.status_code, response.text)
+    except Exception as e:
+        print(f"❌ Gagal mengirim notifikasi ke Telegram: {e}")
 
 def main():
     if TELEGRAM_TOKEN is None or CHAT_ID is None:
@@ -114,7 +115,7 @@ def main():
     message = f"📡 Website Monitoring Result\n📅 {timestamp}\n" + f"⏱️ Durasi: {duration:.2f} detik\n"+f"Aktif: {total_success}/{total_url}\n"+f"Timeout: {total_timeout}\n\n" + result_msg
     send_telegram(message)
 
-
+# === RUN CODE ===
 if __name__ == "__main__":
     main()
 
