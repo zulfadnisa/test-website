@@ -7,13 +7,6 @@ import time
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-# URLS = [
-#     "https://bappeda.cirebonkab.go.id/",
-#     "https://distan.cirebonkab.go.id/",
-#     "https://dev.kab.cirebonkab.go.id/",
-#     "https://adik.cirebonkab.go.id/",
-#     "https://socakaton.cirebonkab.go.id"
-# ]
 FILENAME = "urls50.txt"
 
 def send_telegram(message):
@@ -44,11 +37,16 @@ def check_websites(urls):
 
     for url in urls:
         try:
-            response = requests.get(url,headers=headers, timeout=30) #30 detik kalau di uptimerobot
+            response = requests.get(url,headers=headers, timeout=15) #30 detik kalau di uptimerobot
             status_code = response.status_code
 
             if 200 <= status_code < 400 :
                 total_success+=1
+            elif status_code == 403:
+                if "cloudflare" in response.text.lower():
+                    results.append(f"❌ {url} - Bot-blocked (403)")
+                else:
+                    results.append(f"❌ {url} - Akses ditolak (403)")
             else:
                 results.append(f"❌ {url} - Error ({status_code})")
         except requests.exceptions.Timeout:
@@ -80,27 +78,20 @@ def main():
         return
     
     start_time = time.time()
-    
+
     urls = load_urls_from_file()
     total_url = len(urls)
-    print('TESTING TOTAL URL:', total_url)
 
     results,total_success = check_websites(urls)
-    now = datetime.now(ZoneInfo("Asia/Jakarta"))
-    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-
     result_msg = "\n".join(results)
     if len(results) == 0 and total_success == len(urls):
-        result_msg = "\n ✅ Semua URL Berjalan/OK (200)"
-    
+        result_msg = "\n ✅ Semua URL Berjalan/OK (200)"    
+
     end_time = time.time()
     duration = end_time - start_time
-
+    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     message = f"🌐 Website Monitoring Result\n🕒 {timestamp}\n" + f"⏱️ Durasi: {duration:.2f} detik\n"+f"Success: {total_success}/{total_url}\n\n" + result_msg
-
-    print('TESTING TOTAL SUCCESS:', total_success)
-    print('TESTING TOTAL ERROR:', len(results))
-    print('TESTING DURATION:', duration)
     send_telegram(message)
 
 
