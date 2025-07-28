@@ -17,11 +17,15 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": CHAT_ID, "text": message}
     try:
-        requests.post(url, data=data)
+        response = requests.post(url, data=data)
+        print("Telegram Response:", response.status_code, response.text)
     except Exception as e:
         print(f"Gagal kirim notifikasi: {e}")
 
 def check_websites():
+    print("TELEGRAM_TOKEN:", TELEGRAM_TOKEN)
+    print("CHAT_ID:", CHAT_ID)
+    
     for url in URLS:
         try:
             response = requests.get(url, timeout=10)
