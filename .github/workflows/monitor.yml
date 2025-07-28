@@ -17,4 +17,4 @@ jobs:
       - name: Install dependencies
         run: pip install requests
       - name: Run script
-        run: python monitor.py
+        run: python testlatsar.py
