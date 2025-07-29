@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 import random
+from requests.exceptions import SSLError
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -93,19 +94,24 @@ def check_single_website(url):
         if 200 <= status_code < 400:
             return ("success", url, None)
         elif status_code == 403:
+            print(f"ERROR {url} STATUS CODE 403: {response.text.lower()}")
+
             if "cloudflare" in response.text.lower() or "access denied" in response.text.lower():
                 return ("bot_block", url, "Bot-blocked (403)")
             else:
                 return ("error", url, f"Akses ditolak (403)")
         else:
+            print(f"ERROR {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
             return ("error", url, f"Error ({status_code})")
     except requests.exceptions.Timeout:
         return ("timeout", url, "Timeout")
     except requests.exceptions.ConnectionError:
+        print(f"EXCEPT ConnectionERrror {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
         return ("conn_error", url, "Connection Error")
     except requests.exceptions.TooManyRedirects:
         return ("redirect_error", url, "Terlalu banyak redirect")
     except requests.exceptions.RequestException as e:
+        print(f"EXCEPT {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
         return ("other_error", url, f"Gagal Akses ({type(e).__name__})")
 
 def check_websites_parallel(urls):

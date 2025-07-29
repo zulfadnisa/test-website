@@ -23,3 +23,6 @@ httpx — lebih powerful dari requests
 undetected-chromedriver — jalanin Chrome headless (berat)
 
 [cloudscraper] — library ringan khusus untuk lewati Cloudflare (tapi kadang tak stabil di GitHub Actions)
+
+- Your connection is not private -> except requests.exceptions.SSLError:
+    return ("ssl_error", url, "SSL Certificate Error")
