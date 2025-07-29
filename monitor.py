@@ -11,6 +11,7 @@ import cloudscraper
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+# FILENAME = "testing.txt"
 FILENAME = "urls.txt"
 HEADERS = {
     "User-Agent": 
@@ -87,7 +88,7 @@ def try_request(url):
         try:
             timeout = timeouts[min(attempt, len(timeouts)-1)]
             response = requests.get(url, headers=get_random_headers(), timeout=timeout) #30 detik kalau di uptimerobot
-            if response.status_code in [403, 468] and attempt < retries:
+            if response.status_code in [403, 468]:
                 time.sleep(1)
                 scraper = cloudscraper.create_scraper()
                 response = scraper.get(url, timeout=timeout)
@@ -120,15 +121,16 @@ def check_single_website(url):
             return ("error", url, f"Error ({status_code})")
     except requests.exceptions.Timeout:
         return ("timeout", url, "Timeout")
-    except requests.exceptions.ConnectionError:
+    except requests.exceptions.ConnectionError as e:
         # print(f"EXCEPT ConnectionERrror {url} TEXT: {response.text.lower()}")
-        return ("conn_error", url, "Connection Error")
+        if "Name or service not known" in str(e) or "Temporary failure in name resolution" in str(e):
+            return ("dns_error", url, "DNS Lookup Failed")
+        elif "ssl" in str(e).lower():
+            return ("ssl_error", url, "SSL Certificate Error (from conn error)")
+        else:
+            return ("conn_error", url, "Connection Error")
     except SSLError:
         return ("ssl_error", url, "SSL Certificate Error")
-    except requests.exceptions.ConnectionError as e:
-        if "ssl" in str(e).lower():
-            return ("ssl_error", url, "SSL Certificate Error (from conn error)")
-        return ("conn_error", url, "Connection Error")
     except requests.exceptions.TooManyRedirects:
         return ("redirect_error", url, "Terlalu banyak redirect")
     except requests.exceptions.RequestException as e:
@@ -144,6 +146,7 @@ def check_websites_parallel(urls):
         "bot_block": 0,
         "error": 0,
         "ssl_error":0,
+        "dns_error":0,
         "redirect_error": 0,
         "other_error": 0
     }
@@ -193,6 +196,7 @@ def create_report(duration,total_urls,counters,results):
         f"  ❓ ConnError: {counters['conn_error']}\n"
         f"  ⛔ Bot-block: {counters['bot_block']}\n"
         f"  🔁 SSL Error: {counters['ssl_error']}\n"
+        f"  🔁 DNS Error: {counters['dns_error']}\n"
         f"  🔁 Redirect: {counters['redirect_error']}\n"
         f"  ⚠️ Error lain: {counters['other_error'] + counters['error']}\n"
     )

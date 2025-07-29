@@ -24,5 +24,8 @@ undetected-chromedriver — jalanin Chrome headless (berat)
 
 [cloudscraper] — library ringan khusus untuk lewati Cloudflare (tapi kadang tak stabil di GitHub Actions)
 
-- Your connection is not private -> except requests.exceptions.SSLError:
-    return ("ssl_error", url, "SSL Certificate Error")
+- Deteksi DNS error:
+except requests.exceptions.ConnectionError as e:
+    if "Name or service not known" in str(e) or "Temporary failure in name resolution" in str(e):
+        return ("dns_error", url, "DNS Lookup Failed")
+    return ("conn_error", url, "Connection Error")

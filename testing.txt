@@ -1,1 +1,3 @@
 cirebonkab.go.id.
+http://diskominfo.cirebonkab.go.id/
+absensi.dpmptsp.cirebonkab.go.id.
