@@ -9,22 +9,20 @@ import asyncio
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from typing import List, Tuple, Dict, Optional
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-FILENAME = "urls.txt"
-# FILENAME = "testing.txt"
+# FILENAME = "urls.txt"
+FILENAME = "urls50.txt"
 HEADERS = {
-    "User-Agent": 
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/115.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.5",
     "Connection": "keep-alive",
     "Upgrade-Insecure-Requests": "1",
-    "DNT": "1",  # Do Not Track
+    "DNT": "1",
     "Cache-Control": "no-cache"
 }
 USER_AGENTS = [
@@ -51,18 +49,35 @@ USER_AGENTS = [
 MAX_CONCURRENT_REQUESTS = 5  # Sesuaikan dengan kapasitas server target!
 LOG_NAME = '📝 Log Error Lengkap'
 LOG_FILENAME = 'log.txt'
+BATCH_SIZE = 100  # Process URLs in batches to reduce memory pressure
+MAX_RETRIES = 2  # Increased from 2
+BASE_TIMEOUT = 30  # Base timeout in seconds
 
-# Setup logging to file
-logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Enhanced logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler('monitor.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # === FUNCTION ===
 def load_urls_from_file():
     urls = []
+
+    if not os.path.exists(FILENAME):
+        logging.error(f"File {FILENAME} not found")
+        return urls
+
     with open(FILENAME, "r") as file:
         for line in file:
             url = line.strip()
             if not url:
                 continue
+            # if not url.startswith(('http://', 'https://')):
+            #     url = f"https://{url}"
             urls.append(url)
     return urls
 
@@ -104,138 +119,224 @@ def get_random_headers():
         "Cookie": "session=test; botcheck=pass"
     }
 
-async def try_request_async(url, session):
+# === CORE MONITORING FUNCTIONS ===
+async def try_request_async(url: str, session: aiohttp.ClientSession) -> Tuple[str, str, Optional[str]]:
+    """Make an async request with retry logic"""
     base_url = url.replace("http://", "").replace("https://", "")
-    schemes = ["https://", "http://"]
+    schemes = ["https://", "http://"]  # Try HTTPS first
+    last_error = None
     
     for scheme in schemes:
         full_url = scheme + base_url
-        for attempt in range(2):  # Retry sekali per scheme
-            timeout = aiohttp.ClientTimeout(total=30 if attempt == 0 else 45)  # Timeout lebih panjang
+        
+        for attempt in range(MAX_RETRIES):
+            timeout = BASE_TIMEOUT * (attempt + 1)  # Exponential timeout
+            
             try:
-                async with session.get(full_url, headers=get_random_headers(), timeout=timeout) as response:
+                logging.debug(f"Checking {full_url} (attempt {attempt + 1})")
+                
+                async with session.get(
+                    full_url,
+                    headers=get_random_headers(),
+                    timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as response:
                     text = await response.text()
                     
-                    # Handle 403/468 dengan cloudscraper
+                    # Handle security protections
                     if response.status in [403, 468]:
-                        if "safeline" in text.lower() or "cloudflare" in text.lower():
-                            scraper = cloudscraper.create_scraper()
-                            logging.warning(f"⚠️  Using cloudscraper for {full_url}")
-                            sync_response = scraper.get(full_url, timeout=timeout.total)
-                            return sync_response
-                    return response
+                        if any(s in text.lower() for s in ['cloudflare', 'safeline', 'ddos']):
+                            logging.info(f"Security protection detected on {full_url}, using fallback")
+                            try:
+                                # Run cloudscraper in a separate thread
+                                sync_response = await asyncio.to_thread(
+                                    cloudscraper.create_scraper().get,
+                                    full_url,
+                                    timeout=timeout
+                                )
+                                return (
+                                    "success" if sync_response.ok else "bot_block",
+                                    full_url,
+                                    f"Protected ({sync_response.status_code})"
+                                )
+                            except Exception as e:
+                                logging.warning(f"Fallback failed for {full_url}: {str(e)}")
+                                last_error = f"fallback_failed: {str(e)}"
+                                continue
                     
-            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                logging.error(f"Attempt {attempt + 1} failed for {full_url}: {str(e)}. Retrying...")
-                continue  # Retry sekali
-            except aiohttp.ClientSSLError as ssl_error:
-                logging.error(f"SSL error on {full_url}: {str(ssl_error)}")
-                break  # Langsung skip ke scheme berikutnya
+                    if 200 <= response.status < 400:
+                        return ("success", full_url, None)
+                    return ("error", full_url, f"HTTP {response.status}")
+                    
+            except (aiohttp.ClientSSLError, SSLError) as e:
+                last_error = f"ssl_error: {str(e)}"
+                continue  # Try next scheme
+            except asyncio.TimeoutError as e:
+                last_error = f"timeout: {str(e)}"
+                await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
+                continue
+            except aiohttp.ClientError as e:
+                last_error = f"client_error: {str(e)}"
+                await asyncio.sleep(1 * (attempt + 1))
+                continue
             except Exception as e:
-                logging.error(f"Unexpected error on {full_url}: {str(e)}")
-                raise
+                last_error = f"unexpected_error: {str(e)}"
+                logging.error(f"Unexpected error checking {full_url}: {str(e)}")
+                break
+    
+    # Determine final error status
+    error_type = last_error.split(':')[0] if last_error else "unknown_error"
+    return (error_type, url, last_error or "Unknown error")
 
-    raise ConnectionError(f"Failed after retries: {url}")
-
-async def check_single_website(url, session):
+async def check_single_website(url: str, session: aiohttp.ClientSession) -> Tuple[str, str, Optional[str]]:
+    """Check a single website's availability"""
     try:
-        response = await try_request_async(url, session)
+        status, checked_url, message = await try_request_async(url, session)
         
-        if isinstance(response, cloudscraper.CloudScraper):
-            status_code = response.status_code
-            text = response.text
-        else:
-            status_code = response.status
-            text = await response.text()
+        # Additional error classification
+        if status == "conn_error" and message:
+            if "name or service not known" in message.lower() or "dns" in message.lower():
+                status = "dns_error"
         
-        if 200 <= status_code < 400:
-            return ("success", url, None)
-        elif status_code in [403, 468]:
-            if "safeline" in text.lower():
-                return ("bot_block", url, f"Blocked by Safeline ({status_code})")
-            elif "cloudflare" in text.lower():
-                return ("bot_block", url, f"Blocked by Cloudflare ({status_code})")
-            else:
-                return ("error", url, f"Access denied ({status_code})")
-        else:
-            return ("error", url, f"HTTP {status_code}")
-    except requests.exceptions.Timeout:
-        return ("timeout", url, "Timeout")
-    except ConnectionError as e:
-        msg = str(e).lower()
-        if "name or service not known" in msg or "temporary failure in name resolution" in msg or "nodename nor servname" in msg or "dns" in msg:
-            return ("dns_error", url, "DNS Lookup Failed")
-        elif "ssl" in msg:
-            return ("ssl_error", url, "SSL Certificate Error (from conn error)")
-        else:
-            return ("conn_error", url, f"Connection Error: ({type(e).__name__})")
-    except SSLError:
-        return ("ssl_error", url, "SSL Certificate Error")
-    # except requests.exceptions.TooManyRedirects:
-    #     return ("redirect_error", url, "Terlalu banyak redirect")
+        return (status, checked_url, message)
+    
+    except asyncio.TimeoutError:
+        return ("timeout", url, "Request timed out")
+    except aiohttp.ClientSSLError:
+        return ("ssl_error", url, "SSL certificate error")
+    except aiohttp.ClientConnectionError:
+        return ("conn_error", url, "Connection failed")
     except Exception as e:
-        return ("other_error", url, f"Gagal Akses ({type(e).__name__})")
+        logging.error(f"Unexpected error checking {url}: {str(e)}")
+        return ("error", url, f"Unexpected error: {str(e)}")
 
-async def check_websites_async(urls):
+async def process_batch(batch: List[str], session: aiohttp.ClientSession) -> Tuple[Dict[str, int], List[str]]:
+    """Process a batch of URLs"""
     counters = {
         "success": 0,
-        "bot_block": 0,
-        "timeout": 0,
-        "conn_error": 0,
-        "ssl_error":0,
-        "dns_error":0,
         "error": 0,
-        "redirect_error": 0,
-        "other_error": 0
+        "timeout": 0,
+        "bot_block": 0,
+        "ssl_error": 0,
+        "dns_error": 0,
+        "conn_error": 0,
+        # "unknown_error":0,
+        # "client_error":0,
+        # "unexpected_error":0
     }
     results = []
     
-    connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT_REQUESTS)
-    async with aiohttp.ClientSession(connector=connector) as session:
-        tasks = [check_single_website(url, session) for url in urls]
-        
-        for future in asyncio.as_completed(tasks):
+    tasks = [check_single_website(url, session) for url in batch]
+    
+    for future in asyncio.as_completed(tasks):
+        try:
             status, url, msg = await future
             counters[status] += 1
             if status != "success":
                 results.append(f"{url} - {msg}")
+        except Exception as e:
+            logging.error(f"Error processing URL: {str(e)}")
+            counters["error"] += 1
+            results.append(f"UNKNOWN - Processing error: {str(e)}")
     
-    return results, counters
+    return counters, results
 
-def create_report(duration,total_urls,counters,results):
-    now = datetime.now(ZoneInfo("Asia/Jakarta"))
-    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
-    header = (
-    f"📡 Website Monitor Report: {timestamp}\n"
-    f"⏱️ Running time: {duration:.2f} detik\n\n"
-    f"✅ Status: {counters['success']}/{total_urls} aktif\n"
-    f"❌ Masalah: {total_urls - counters['success']} tidak aktif\n"
-    f"  - Timeout: {counters['timeout']}\n"
-    f"  - Koneksi Error: {counters['conn_error']}\n"
-    f"  - Bot Block: {counters['bot_block']}\n"
-    f"  - SSL Error: {counters['ssl_error']}\n"
-    f"  - DNS Error: {counters['dns_error']}\n"
-    # f"  - Redirect Error: {counters['redirect_error']}\n"
-    f"  - Error Lain: {counters['other_error'] + counters['error']}\n"
+async def check_websites_async(urls: List[str]) -> Tuple[Dict[str, int], List[str]]:
+    """Main website checking function with batch processing"""
+    total_counters = {k: 0 for k in [
+        "success", "error", "timeout", "bot_block", 
+        "ssl_error", "dns_error", "conn_error"
+    ]}
+    all_results = []
+    
+    connector = aiohttp.TCPConnector(
+        limit=MAX_CONCURRENT_REQUESTS,
+        force_close=False,
+        enable_cleanup_closed=True,
+        ssl=False
     )
-    send_telegram(f"{header}\n Detail report akan dikirim sebagai file log.")
-    send_telegram_file(results)
+    
+    async with aiohttp.ClientSession(connector=connector) as session:
+        # Process in batches to reduce memory usage
+        for i in range(0, len(urls), BATCH_SIZE):
+            batch = urls[i:i + BATCH_SIZE]
+            logging.info(f"Processing batch {i//BATCH_SIZE + 1}/{(len(urls)-1)//BATCH_SIZE + 1}")
+            
+            batch_counters, batch_results = await process_batch(batch, session)
+            all_results.extend(batch_results)
+            
+            # Update totals
+            for k in total_counters:
+                total_counters[k] += batch_counters.get(k, 0)
+            
+            # Brief pause between batches
+            await asyncio.sleep(1)
+    
+    return total_counters, all_results
 
+def create_report(duration: float, total_urls: int, counters: Dict[str, int], results: List[str]) -> None:
+    """Generate and send monitoring report"""
+    now = datetime.now(ZoneInfo("Asia/Jakarta"))
+    
+    # Create summary message with Markdown formatting
+    summary = (
+        f"*🚀 Website Monitoring Report*\n"
+        f"*Date*: {now:%Y-%m-%d %H:%M:%S}\n\n"
+        f"• *Total URLs Checked*: {total_urls}\n"
+        f"• *Time Elapsed*: {duration:.2f} seconds\n"
+        f"• *Success Rate*: {counters['success']/total_urls:.1%}\n\n"
+        f"*Status Breakdown*:\n"
+        f"✅ Success: {counters['success']}\n"
+        f"⏱️ Timeout: {counters['timeout']}\n"
+        f"🔒 Blocked: {counters['bot_block']}\n"
+        f"🔐 SSL Errors: {counters['ssl_error']}\n"
+        f"🌐 DNS Errors: {counters['dns_error']}\n"
+        f"🔌 Connection Errors: {counters['conn_error']}\n"
+        f"❓ Other Errors: {counters['error']}\n\n"
+        f"_Detailed error log is attached_"
+    )
+    
+    # Send summary
+    if not send_telegram(summary, parse_mode="Markdown"):
+        logging.error("Failed to send summary report")
+    
+    # Send detailed log if there were errors
+    if results and not send_telegram_file(results):
+        logging.error("Failed to send detailed error log")
 
-
+# === MAIN EXECUTION ===
 async def main():
-    if TELEGRAM_TOKEN is None or CHAT_ID is None:
-        logging.error(f"TELEGRAM_TOKEN ({TELEGRAM_TOKEN}) atau CHAT_ID({CHAT_ID}) tidak ditemukan.")
+    """Main execution function"""
+    logging.info("Starting website monitoring")
+    
+    # Validate environment
+    if not TELEGRAM_TOKEN or not CHAT_ID:
+        logging.error("Missing Telegram credentials (TELEGRAM_TOKEN or CHAT_ID)")
         return
     
-    start_time = time.time()
-    urls = load_urls_from_file()
-    # results, counters = check_websites_parallel(urls)
-    results, counters = await check_websites_async(urls)
-    duration = time.time() - start_time
-    create_report(duration, len(urls), counters, results)
+    # Load URLs
+    try:
+        start_time = time.time()
+        urls = load_urls_from_file()
+        
+        if not urls:
+            logging.error("No URLs found to check")
+            send_telegram("⚠️ No URLs found to monitor. Check your urls.txt file.")
+            return
+        
+        logging.info(f"Loaded {len(urls)} URLs for monitoring")
+        
+        # Run monitoring
+        counters, results = await check_websites_async(urls)
+        duration = time.time() - start_time
+        
+        # Generate report
+        create_report(duration, len(urls), counters, results)
+        logging.info(f"Monitoring completed in {duration:.2f} seconds")
+    
+    except Exception as e:
+        error_msg = f"🔥 Monitoring failed: {str(e)}"
+        logging.error(error_msg)
+        send_telegram(error_msg)
 
-# === RUN CODE ===
 if __name__ == "__main__":
     asyncio.run(main())
-
