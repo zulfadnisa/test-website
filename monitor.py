@@ -110,6 +110,12 @@ def check_single_website(url):
     except requests.exceptions.ConnectionError:
         print(f"EXCEPT ConnectionERrror {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
         return ("conn_error", url, "Connection Error")
+    except SSLError:
+        return ("ssl_error", url, "SSL Certificate Error")
+    except requests.exceptions.ConnectionError as e:
+        if "ssl" in str(e).lower():
+            return ("ssl_error", url, "SSL Certificate Error (from conn error)")
+        return ("conn_error", url, "Connection Error")
     except requests.exceptions.TooManyRedirects:
         return ("redirect_error", url, "Terlalu banyak redirect")
     except requests.exceptions.RequestException as e:
@@ -124,6 +130,7 @@ def check_websites_parallel(urls):
         "conn_error": 0,
         "bot_block": 0,
         "error": 0,
+        "ssl_error":0,
         "redirect_error": 0,
         "other_error": 0
     }
@@ -172,6 +179,7 @@ def create_report(duration,total_urls,counters,results):
         f"  ⏰ Timeout: {counters['timeout']}\n"
         f"  ❓ ConnError: {counters['conn_error']}\n"
         f"  ⛔ Bot-block: {counters['bot_block']}\n"
+        f"  🔁 SSL Error: {counters['ssl_error']}\n"
         f"  🔁 Redirect: {counters['redirect_error']}\n"
         f"  ⚠️ Error lain: {counters['other_error'] + counters['error']}\n"
     )
