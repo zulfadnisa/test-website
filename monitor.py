@@ -115,7 +115,7 @@ async def try_request_async(url, session):
     for scheme in schemes:
         full_url = scheme + base_url
         for attempt in range(2):  # Retry sekali per scheme
-            timeout = aiohttp.ClientTimeout(total=20 if attempt == 0 else 30)
+            timeout = aiohttp.ClientTimeout(total=10 if attempt == 0 else 15)
             try:
                 async with session.get(full_url, headers=get_random_headers(), timeout=timeout) as response:
                     text = await response.text()
