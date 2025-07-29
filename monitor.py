@@ -50,7 +50,7 @@ USER_AGENTS = [
     # Edge – Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.110 Safari/537.36 Edg/115.0.1901.188",
 ]
-MAX_CONCURRENT_REQUESTS = 10  # Sesuaikan dengan kapasitas server target!
+MAX_CONCURRENT_REQUESTS = 3  # Sesuaikan dengan kapasitas server target!
 LOG_NAME = '📝 Log Error Lengkap'
 LOG_FILENAME = 'log.txt'
 
