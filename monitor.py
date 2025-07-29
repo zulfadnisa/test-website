@@ -120,7 +120,7 @@ def get_random_headers():
     }
 
 # === CORE MONITORING FUNCTIONS ===
-async def try_request_async(url: str, session: aiohttp.ClientSession) -> Tuple[str, str, Optional[str]]:
+async def try_request_async(url: str, session: aiohttp.ClientSession):
     """Make an async request with retry logic"""
     base_url = url.replace("http://", "").replace("https://", "")
     schemes = ["https://", "http://"]  # Try HTTPS first
@@ -187,7 +187,7 @@ async def try_request_async(url: str, session: aiohttp.ClientSession) -> Tuple[s
     error_type = last_error.split(':')[0] if last_error else "unknown_error"
     return (error_type, url, last_error or "Unknown error")
 
-async def check_single_website(url: str, session: aiohttp.ClientSession) -> Tuple[str, str, Optional[str]]:
+async def check_single_website(url: str, session: aiohttp.ClientSession):
     """Check a single website's availability"""
     try:
         status, checked_url, message = await try_request_async(url, session)
@@ -209,7 +209,7 @@ async def check_single_website(url: str, session: aiohttp.ClientSession) -> Tupl
         logging.error(f"Unexpected error checking {url}: {str(e)}")
         return ("error", url, f"Unexpected error: {str(e)}")
 
-async def process_batch(batch: List[str], session: aiohttp.ClientSession) -> Tuple[Dict[str, int], List[str]]:
+async def process_batch(batch: List[str], session: aiohttp.ClientSession):
     """Process a batch of URLs"""
     counters = {
         "success": 0,
@@ -240,7 +240,7 @@ async def process_batch(batch: List[str], session: aiohttp.ClientSession) -> Tup
     
     return counters, results
 
-async def check_websites_async(urls: List[str]) -> Tuple[Dict[str, int], List[str]]:
+async def check_websites_async(urls: List[str]):
     """Main website checking function with batch processing"""
     total_counters = {k: 0 for k in [
         "success", "error", "timeout", "bot_block", 
@@ -273,7 +273,7 @@ async def check_websites_async(urls: List[str]) -> Tuple[Dict[str, int], List[st
     
     return total_counters, all_results
 
-def create_report(duration: float, total_urls: int, counters: Dict[str, int], results: List[str]) -> None:
+def create_report(duration: float, total_urls: int, counters: Dict[str, int], results: List[str]):
     """Generate and send monitoring report"""
     now = datetime.now(ZoneInfo("Asia/Jakarta"))
     
@@ -296,7 +296,7 @@ def create_report(duration: float, total_urls: int, counters: Dict[str, int], re
     )
     
     # Send summary
-    if not send_telegram(summary, parse_mode="Markdown"):
+    if not send_telegram(summary):
         logging.error("Failed to send summary report")
     
     # Send detailed log if there were errors
