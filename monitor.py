@@ -11,8 +11,8 @@ import cloudscraper
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-# FILENAME = "testing.txt"
 FILENAME = "urls.txt"
+# FILENAME = "testing.txt"
 HEADERS = {
     "User-Agent": 
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -56,8 +56,8 @@ def load_urls_from_file():
             url = line.strip()
             if not url:
                 continue
-            if not url.startswith("http://") and not url.startswith("https://"):
-                url = "https://" + url
+            # if not url.startswith("http://") and not url.startswith("https://"):
+            #     url = "https://" + url
             urls.append(url)
     return urls
 
@@ -79,26 +79,28 @@ def get_random_headers():
     }
 
 def try_request(url):
-    # delay = 2
-    retries = 1
-    timeouts = [10, 15]
+    base_url = url.replace("http://", "").replace("https://", "")
 
+    for scheme in ["https://", "http://"]:
+        full_url = scheme + base_url
+        for attempt in range(2):
+            timeout = 10 if attempt == 0 else 15
+            try:
+                response = requests.get(full_url, headers=get_random_headers(), timeout=timeout)
 
-    for attempt in range(retries + 1):
-        try:
-            timeout = timeouts[min(attempt, len(timeouts)-1)]
-            response = requests.get(url, headers=get_random_headers(), timeout=timeout) #30 detik kalau di uptimerobot
-            if response.status_code in [403, 468]:
-                time.sleep(1)
-                scraper = cloudscraper.create_scraper()
-                response = scraper.get(url, timeout=timeout)
-            return response
-        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            if attempt < retries:
-                time.sleep(1)
-                continue
-            else:
-                raise
+                # Kalau 403/468 → coba ulang pakai cloudscraper
+                if response.status_code in [403, 468]:
+                    time.sleep(1)
+                    scraper = cloudscraper.create_scraper()
+                    response = scraper.get(full_url, timeout=timeout)
+                return response
+            # except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
+            except (requests.exceptions.RequestException):
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+    raise requests.exceptions.ConnectionError("Both HTTPS and HTTP failed.")
+
 
 def check_single_website(url):
     try:
