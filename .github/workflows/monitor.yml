@@ -2,9 +2,8 @@ name: Website Monitor
 
 on:
   schedule:
-    # - cron: "*/60 * * * *"  # Tiap 60 menit
-    - cron: "0 1 * * *"   # 08:00 WIB
-    - cron: "0 14 * * *"   # 17:00 WIB
+    - cron: "0 6 * * *"   # Setiap hari jam 06:00 WIB
+    - cron: "0 18 * * *"  # Setiap hari jam 18:00 WIB
   workflow_dispatch:
 
 jobs:
@@ -19,10 +18,10 @@ jobs:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install requests
-
-      - name: Install dependencies
-        run: pip install requests cloudscraper
+        run: |
+          pip install requests
+          pip install cloudscraper
+          pip install aiohttp
 
       - name: Run script
         env:

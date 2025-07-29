@@ -8,7 +8,7 @@ import cloudscraper
 import time
 import aiohttp
 import asyncio
-from bs4 import BeautifulSoup
+# from bs4 import BeautifulSoup
 import requests
 import logging
 
