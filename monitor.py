@@ -50,8 +50,7 @@ USER_AGENTS = [
     # Edge – Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.110 Safari/537.36 Edg/115.0.1901.188",
 ]
-MAX_WORKERS = 6
-MAX_CONCURRENT_REQUESTS = 15  # Sesuaikan dengan kapasitas server target!
+MAX_CONCURRENT_REQUESTS = 10  # Sesuaikan dengan kapasitas server target!
 LOG_NAME = '📝 Log Error Lengkap'
 LOG_FILENAME = 'log.txt'
 
@@ -116,7 +115,7 @@ async def try_request_async(url, session):
     for scheme in schemes:
         full_url = scheme + base_url
         for attempt in range(2):  # Retry sekali per scheme
-            timeout = aiohttp.ClientTimeout(total=8 if attempt == 0 else 10)
+            timeout = aiohttp.ClientTimeout(total=10 if attempt == 0 else 15)
             try:
                 async with session.get(full_url, headers=get_random_headers(), timeout=timeout) as response:
                     text = await response.text()
