@@ -115,7 +115,7 @@ async def try_request_async(url, session):
     for scheme in schemes:
         full_url = scheme + base_url
         for attempt in range(2):  # Retry sekali per scheme
-            timeout = aiohttp.ClientTimeout(total=10 if attempt == 0 else 15)
+            timeout = aiohttp.ClientTimeout(total=20 if attempt == 0 else 30)
             try:
                 async with session.get(full_url, headers=get_random_headers(), timeout=timeout) as response:
                     text = await response.text()
@@ -123,8 +123,8 @@ async def try_request_async(url, session):
                     # Handle 403/468 dengan cloudscraper
                     if response.status in [403, 468]:
                         if "safeline" in text.lower() or "cloudflare" in text.lower():
-                            # scraper = cloudscraper.create_scraper()
-                            scraper = cloudscraper.create_scraper(browser={'custom': 'Scraper/1.0'})
+                            scraper = cloudscraper.create_scraper()
+                            # scraper = cloudscraper.create_scraper(browser={'custom': 'Scraper/1.0'})
                             logging.warning(f"⚠️  Using cloudscraper for {full_url}")
                             sync_response = scraper.get(full_url, timeout=timeout.total)
                             return sync_response
