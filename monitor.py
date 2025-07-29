@@ -14,8 +14,8 @@ from typing import List, Tuple, Dict, Optional
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-# FILENAME = "urls.txt"
-FILENAME = "urls50.txt"
+FILENAME = "urls.txt"
+# FILENAME = "urls50.txt"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
