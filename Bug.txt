@@ -29,3 +29,16 @@ except requests.exceptions.ConnectionError as e:
     if "Name or service not known" in str(e) or "Temporary failure in name resolution" in str(e):
         return ("dns_error", url, "DNS Lookup Failed")
     return ("conn_error", url, "Connection Error")
+-  4. Simpan hasil HTTPS/HTTP yang sukses sebelumnya, jadi next run gak harus coba dua-duanya lagi
+- PING
+from ping3 import ping
+import requests
+
+host = "example.com"
+url = f"https://{host}"
+
+# Step 1: Ping test
+if ping(host, timeout=2) is None:
+    print(f"[PING] {host} is DOWN")
+else:
+    print(f"[PING] {host} is UP")

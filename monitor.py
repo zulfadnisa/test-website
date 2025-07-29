@@ -1,12 +1,16 @@
 import os
-import requests
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import time
-from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
+# from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 import random
 from requests.exceptions import SSLError
 import cloudscraper
+import time
+import aiohttp
+import asyncio
+from bs4 import BeautifulSoup
+import requests
+import logging
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -47,6 +51,12 @@ USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.110 Safari/537.36 Edg/115.0.1901.188",
 ]
 MAX_WORKERS = 6
+MAX_CONCURRENT_REQUESTS = 15  # Sesuaikan dengan kapasitas server target!
+LOG_NAME = '📝 Log Error Lengkap'
+LOG_FILENAME = 'log.txt'
+
+# Setup logging to file
+logging.basicConfig(filename='app.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # === FUNCTION ===
 def load_urls_from_file():
@@ -60,6 +70,27 @@ def load_urls_from_file():
             #     url = "https://" + url
             urls.append(url)
     return urls
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": message}
+    try:
+        response = requests.post(url, data=data)
+        logging.info(f"Notifikasi berhasil dikirim dengan status code {response.status_code} dan text {response.text}")
+    except Exception as e:
+        logging.error(f"Gagal mengirim notifikasi ke Telegram: {e}")
+
+def send_telegram_file(results):
+    with open(LOG_FILENAME, "w", encoding="utf-8") as f:
+        f.write("\n".join(results))
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
+    with open(LOG_FILENAME, 'rb') as f:
+        files = {'document': f}
+        data = {'chat_id': CHAT_ID, 'caption': LOG_NAME}
+        requests.post(url, data=data, files=files)
+    if os.path.exists(LOG_FILENAME):
+        os.remove(LOG_FILENAME)
 
 def get_random_headers():
     return {
@@ -78,162 +109,142 @@ def get_random_headers():
         "Cookie": "session=test; botcheck=pass"
     }
 
-def try_request(url):
+async def try_request_async(url, session):
     base_url = url.replace("http://", "").replace("https://", "")
-
-    for scheme in ["https://", "http://"]:
+    schemes = ["https://", "http://"]
+    
+    for scheme in schemes:
         full_url = scheme + base_url
-        for attempt in range(2):
-            timeout = 10 if attempt == 0 else 15
+        for attempt in range(2):  # Retry sekali per scheme
+            timeout = aiohttp.ClientTimeout(total=8 if attempt == 0 else 10)
             try:
-                response = requests.get(full_url, headers=get_random_headers(), timeout=timeout)
-
-                # Kalau 403/468 → coba ulang pakai cloudscraper
-                if response.status_code in [403, 468]:
-                    time.sleep(1)
-                    scraper = cloudscraper.create_scraper()
-                    response = scraper.get(full_url, timeout=timeout)
-                return response
-            # except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
-            except (requests.exceptions.RequestException):
+                async with session.get(full_url, headers=get_random_headers(), timeout=timeout) as response:
+                    text = await response.text()
+                    
+                    # Handle 403/468 dengan cloudscraper
+                    if response.status in [403, 468]:
+                        if "safeline" in text.lower() or "cloudflare" in text.lower():
+                            # scraper = cloudscraper.create_scraper()
+                            scraper = cloudscraper.create_scraper(browser={'custom': 'Scraper/1.0'})
+                            logging.warning(f"⚠️  Using cloudscraper for {full_url}")
+                            sync_response = scraper.get(full_url, timeout=timeout.total)
+                            return sync_response
+                    return response
+                    
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 if attempt == 0:
-                    time.sleep(1)
-                    continue
-    raise requests.exceptions.ConnectionError("Both HTTPS and HTTP failed.")
+                    logging.warning(f"Attempt {attempt + 1} failed for {full_url}: {str(e)}. Retrying...")
+                    continue  # Retry sekali
+                logging.error(f"Failed {full_url} after 2 attempts: {str(e)}")
+                break  # Skip HTTP jika HTTPS error spesifik (misal SSL)
+            except aiohttp.ClientSSLError as ssl_error:
+                logging.error(f"SSL error on {full_url}: {str(ssl_error)}")
+                break  # Langsung skip ke scheme berikutnya
+            except Exception as e:
+                logging.error(f"Unexpected error on {full_url}: {str(e)}")
+                raise
 
+    raise ConnectionError(f"Failed after retries: {url}")
 
-def check_single_website(url):
+async def check_single_website(url, session):
     try:
-        response = try_request(url)
-        status_code = response.status_code
-
+        response = await try_request_async(url, session)
+        
+        if isinstance(response, cloudscraper.CloudScraper):
+            status_code = response.status_code
+            text = response.text
+        else:
+            status_code = response.status
+            text = await response.text()
+        
         if 200 <= status_code < 400:
             return ("success", url, None)
-        elif status_code == 403 or status_code == 468:
-            # print(f"ERROR {url} STATUS CODE {status_code}")
-
-            if "cloudflare" in response.text.lower() or "access denied" in response.text.lower():
-                return ("bot_block", url, f"Bot-blocked ({status_code})")
-            elif "safeline" in response.text.lower() or "/.safeline/" in response.text.lower():
-                return ("bot_block", url, f"Bot-blocked ({status_code} / SafeLine)")
+        elif status_code in [403, 468]:
+            if "safeline" in text.lower():
+                return ("bot_block", url, f"Blocked by Safeline ({status_code})")
+            elif "cloudflare" in text.lower():
+                return ("bot_block", url, f"Blocked by Cloudflare ({status_code})")
             else:
-                return ("error", url, f"Akses ditolak ({status_code})")
+                return ("error", url, f"Access denied ({status_code})")
         else:
-            # print(f"ERROR {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
-            return ("error", url, f"Error ({status_code})")
+            return ("error", url, f"HTTP {status_code}")
     except requests.exceptions.Timeout:
         return ("timeout", url, "Timeout")
-    except requests.exceptions.ConnectionError as e:
-        # print(f"EXCEPT ConnectionERrror {url} TEXT: {response.text.lower()}")
+    except ConnectionError as e:
         msg = str(e).lower()
         if "name or service not known" in msg or "temporary failure in name resolution" in msg or "nodename nor servname" in msg or "dns" in msg:
             return ("dns_error", url, "DNS Lookup Failed")
         elif "ssl" in msg:
             return ("ssl_error", url, "SSL Certificate Error (from conn error)")
         else:
-            return ("conn_error", url, "Connection Error")
+            return ("conn_error", url, f"Connection Error: ({type(e).__name__})")
     except SSLError:
         return ("ssl_error", url, "SSL Certificate Error")
-    except requests.exceptions.TooManyRedirects:
-        return ("redirect_error", url, "Terlalu banyak redirect")
-    except requests.exceptions.RequestException as e:
-        # print(f"EXCEPT {url} TEXT: {response.text.lower()}")
+    # except requests.exceptions.TooManyRedirects:
+    #     return ("redirect_error", url, "Terlalu banyak redirect")
+    except Exception as e:
         return ("other_error", url, f"Gagal Akses ({type(e).__name__})")
 
-def check_websites_parallel(urls):
-    results = []
+async def check_websites_async(urls):
     counters = {
         "success": 0,
+        "bot_block": 0,
         "timeout": 0,
         "conn_error": 0,
-        "bot_block": 0,
-        "error": 0,
         "ssl_error":0,
         "dns_error":0,
+        "error": 0,
         "redirect_error": 0,
         "other_error": 0
     }
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_to_url = {executor.submit(check_single_website, url): url for url in urls}
-
-        for future in as_completed(future_to_url):
-            status, url, message = future.result()
+    results = []
+    
+    connector = aiohttp.TCPConnector(limit=MAX_CONCURRENT_REQUESTS)
+    async with aiohttp.ClientSession(connector=connector) as session:
+        tasks = [check_single_website(url, session) for url in urls]
+        
+        for future in asyncio.as_completed(tasks):
+            status, url, msg = await future
             counters[status] += 1
             if status != "success":
-                icon = {'timeout': '⏰',
-                        'conn_error': '❓',
-                        'redirect_error': '⚠️',
-                        'other_error': '⚠️'
-                        }.get(status, '❌')
-                results.append(f"{icon} {url} - {message}")
-
+                results.append(f"{url} - {msg}")
+    
     return results, counters
-
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message}
-    try:
-        response = requests.post(url, data=data)
-        print("✅ Notifikasi berhasil dikirim.", response.status_code, response.text)
-    except Exception as e:
-        print(f"❌ Gagal mengirim notifikasi ke Telegram: {e}")
-
-def send_telegram_file(filename, caption="Log"):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    with open(filename, 'rb') as f:
-        files = {'document': f}
-        data = {'chat_id': CHAT_ID, 'caption': caption}
-        requests.post(url, data=data, files=files)
 
 def create_report(duration,total_urls,counters,results):
     now = datetime.now(ZoneInfo("Asia/Jakarta"))
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
     header = (
-        f"📡 Website Monitor\n"
-        f"📅 {timestamp}\n"
-        f"⏱️ Durasi: {duration:.2f} detik\n\n"
-        f"✅ Aktif: {counters['success']}/{total_urls}\n"
-        f"❌ Bermasalah: {total_urls - counters['success']}\n"
-        f"  ⏰ Timeout: {counters['timeout']}\n"
-        f"  ❓ ConnError: {counters['conn_error']}\n"
-        f"  ⛔ Bot-block: {counters['bot_block']}\n"
-        f"  🔁 SSL Error: {counters['ssl_error']}\n"
-        f"  🔁 DNS Error: {counters['dns_error']}\n"
-        f"  🔁 Redirect: {counters['redirect_error']}\n"
-        f"  ⚠️ Error lain: {counters['other_error'] + counters['error']}\n"
+    f"📡 Website Monitor Report: {timestamp}\n"
+    f"⏱️ Running time: {duration:.2f} detik\n\n"
+    f"✅ Status: {counters['success']}/{total_urls} aktif\n"
+    f"❌ Masalah: {total_urls - counters['success']} tidak aktif\n"
+    f"  - Timeout: {counters['timeout']}\n"
+    f"  - Koneksi Error: {counters['conn_error']}\n"
+    f"  - Bot Block: {counters['bot_block']}\n"
+    f"  - SSL Error: {counters['ssl_error']}\n"
+    f"  - DNS Error: {counters['dns_error']}\n"
+    # f"  - Redirect Error: {counters['redirect_error']}\n"
+    f"  - Error Lain: {counters['other_error'] + counters['error']}\n"
     )
+    send_telegram(f"{header}\n Detail report akan dikirim sebagai file log.")
+    send_telegram_file(results)
 
-    error_count = len(results)  # Jumlah error
-    if error_count > 10:
-        send_telegram(f"{header}\n⚠️ Terlalu banyak error ({error_count}). Detail dikirim sebagai file log.")
 
-        with open("log.txt", "w", encoding="utf-8") as f:
-            f.write("\n".join(results))
 
-        send_telegram_file("log.txt", caption="📝 Log Error Lengkap")
-        if os.path.exists("log.txt"):
-            os.remove("log.txt")
-    else:
-        detail = "\n".join(results)
-        send_telegram(f"{header}\n{detail}")
-
-def main():
+async def main():
     if TELEGRAM_TOKEN is None or CHAT_ID is None:
-        print("❌ TELEGRAM_TOKEN atau CHAT_ID tidak ditemukan.")
+        logging.error(f"TELEGRAM_TOKEN ({TELEGRAM_TOKEN}) atau CHAT_ID({CHAT_ID}) tidak ditemukan.")
         return
     
     start_time = time.time()
     urls = load_urls_from_file()
-    total_urls = len(urls)
-    results, counters = check_websites_parallel(urls)
-    end_time = time.time()
-    duration = end_time - start_time
-
-    create_report(duration,total_urls,counters,results)
-
+    # results, counters = check_websites_parallel(urls)
+    results, counters = await check_websites_async(urls)
+    duration = time.time() - start_time
+    create_report(duration, len(urls), counters, results)
 
 # === RUN CODE ===
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
 
