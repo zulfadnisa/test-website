@@ -123,9 +123,10 @@ def check_single_website(url):
         return ("timeout", url, "Timeout")
     except requests.exceptions.ConnectionError as e:
         # print(f"EXCEPT ConnectionERrror {url} TEXT: {response.text.lower()}")
-        if "Name or service not known" in str(e) or "Temporary failure in name resolution" in str(e):
+        msg = str(e).lower()
+        if "name or service not known" in msg or "temporary failure in name resolution" in msg or "nodename nor servname" in msg or "dns" in msg:
             return ("dns_error", url, "DNS Lookup Failed")
-        elif "ssl" in str(e).lower():
+        elif "ssl" in msg:
             return ("ssl_error", url, "SSL Certificate Error (from conn error)")
         else:
             return ("conn_error", url, "Connection Error")
