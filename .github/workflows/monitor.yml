@@ -4,7 +4,7 @@ on:
   schedule:
     # - cron: "*/60 * * * *"  # Tiap 60 menit
     - cron: "0 1 * * *"   # 08:00 WIB
-    - cron: "0 11 * * *"   # 14:00 WIB
+    - cron: "0 14 * * *"   # 17:00 WIB
   workflow_dispatch:
 
 jobs:

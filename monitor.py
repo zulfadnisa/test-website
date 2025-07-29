@@ -25,20 +25,25 @@ HEADERS = {
     "Cache-Control": "no-cache"
 }
 USER_AGENTS = [
-    # Chrome
+    # Chrome – Windows
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
 
-    # Firefox
+    # Firefox – Windows
     "Mozilla/5.0 (Windows NT 10.0; rv:102.0) Gecko/20100101 Firefox/102.0",
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/99.0",
 
-    # Safari
+    # Safari – macOS
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
 
-    # Mobile
+    # Chrome – Android
     "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36",
+
+    # Safari – iPhone
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1"
+
+    # Edge – Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.110 Safari/537.36 Edg/115.0.1901.188",
 ]
 MAX_WORKERS = 6
 
@@ -58,12 +63,18 @@ def load_urls_from_file():
 def get_random_headers():
     return {
         "User-Agent": random.choice(USER_AGENTS), #biar ga dianggap bot/spam oleh server
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
         "Upgrade-Insecure-Requests": "1",
         "Connection": "keep-alive",
         "DNT": "1",  # Do Not Track
-        "Cache-Control": "no-cache"
+        "Cache-Control": "no-cache",
+        "Referer": "https://www.google.com/",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Cookie": "session=test; botcheck=pass"
     }
 
 def try_request(url):
@@ -96,19 +107,21 @@ def check_single_website(url):
         if 200 <= status_code < 400:
             return ("success", url, None)
         elif status_code == 403 or status_code == 468:
-            print(f"ERROR {url} STATUS CODE 403: {response.text.lower()}")
+            # print(f"ERROR {url} STATUS CODE {status_code}")
 
             if "cloudflare" in response.text.lower() or "access denied" in response.text.lower():
                 return ("bot_block", url, f"Bot-blocked ({status_code})")
+            elif "safeline" in response.text.lower() or "/.safeline/" in response.text.lower():
+                return ("bot_block", url, f"Bot-blocked ({status_code} / SafeLine)")
             else:
                 return ("error", url, f"Akses ditolak ({status_code})")
         else:
-            print(f"ERROR {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
+            # print(f"ERROR {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
             return ("error", url, f"Error ({status_code})")
     except requests.exceptions.Timeout:
         return ("timeout", url, "Timeout")
     except requests.exceptions.ConnectionError:
-        print(f"EXCEPT ConnectionERrror {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
+        # print(f"EXCEPT ConnectionERrror {url} TEXT: {response.text.lower()}")
         return ("conn_error", url, "Connection Error")
     except SSLError:
         return ("ssl_error", url, "SSL Certificate Error")
@@ -119,7 +132,7 @@ def check_single_website(url):
     except requests.exceptions.TooManyRedirects:
         return ("redirect_error", url, "Terlalu banyak redirect")
     except requests.exceptions.RequestException as e:
-        print(f"EXCEPT {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
+        # print(f"EXCEPT {url} TEXT: {response.text.lower()}")
         return ("other_error", url, f"Gagal Akses ({type(e).__name__})")
 
 def check_websites_parallel(urls):
