@@ -6,6 +6,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 import random
 from requests.exceptions import SSLError
+import cloudscraper
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -75,9 +76,10 @@ def try_request(url):
         try:
             timeout = timeouts[min(attempt, len(timeouts)-1)]
             response = requests.get(url, headers=get_random_headers(), timeout=timeout) #30 detik kalau di uptimerobot
-            if response.status_code in [403, 503] and attempt < retries:
+            if response.status_code in [403, 468] and attempt < retries:
                 time.sleep(1)
-                continue
+                scraper = cloudscraper.create_scraper()
+                response = scraper.get(url, timeout=timeout)
             return response
         except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):
             if attempt < retries:
@@ -93,13 +95,13 @@ def check_single_website(url):
 
         if 200 <= status_code < 400:
             return ("success", url, None)
-        elif status_code == 403:
+        elif status_code == 403 or status_code == 468:
             print(f"ERROR {url} STATUS CODE 403: {response.text.lower()}")
 
             if "cloudflare" in response.text.lower() or "access denied" in response.text.lower():
-                return ("bot_block", url, "Bot-blocked (403)")
+                return ("bot_block", url, f"Bot-blocked ({status_code})")
             else:
-                return ("error", url, f"Akses ditolak (403)")
+                return ("error", url, f"Akses ditolak ({status_code})")
         else:
             print(f"ERROR {url} STATUS CODE: {status_code} TEXT: {response.text.lower()}")
             return ("error", url, f"Error ({status_code})")
