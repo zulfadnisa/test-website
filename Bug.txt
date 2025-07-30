@@ -4,32 +4,25 @@ https://absensi.dpmptsp.cirebonkab.go.id. - Error Forbidden (403)
 
 
 ---------- Note -------
-- Tambahkan pengecekan konten (keyword seperti "error", "maintenance")
+1. Tambahkan pengecekan konten (keyword seperti "error", "maintenance")
 if response.status_code == 200:
     if any(k in response.text.lower() for k in ["maintenance", "under construction", "error"]):
         results.append(f"⚠️ Aktif tapi isi error: {url}")
     else:
         results.append(f"✅ Aktif: {url}")
-Bug di code -> kirim email
-hasil report
-3. Simpan Status Sebelumnya → Deteksi Perubahan (Up ⇄ Down)
-5. Bisa tambahkan statistik "berubah dari status sebelumnya" (kalau kamu ingin sistem pintar)
-- Dashboard atau grafik historis
-4. 💡 Gunakan library yang bisa simulasi browser (kalau perlu)
-Kalau masih diblok, kamu bisa pakai:
+2. Bug di code -> kirim email
+3. hasil report
+4. Simpan Status Sebelumnya → Deteksi Perubahan (Up ⇄ Down)
+5. Bisa tambahkan statistik "berubah dari status sebelumnya" (kalau kamu ingin sistem pintar). Dashboard atau grafik historis
 
-httpx — lebih powerful dari requests
+6. Simpan hasil HTTPS/HTTP yang sukses sebelumnya, jadi next run gak harus coba dua-duanya lagi
 
-undetected-chromedriver — jalanin Chrome headless (berat)
 
-[cloudscraper] — library ringan khusus untuk lewati Cloudflare (tapi kadang tak stabil di GitHub Actions)
-
-- Deteksi DNS error:
-except requests.exceptions.ConnectionError as e:
-    if "Name or service not known" in str(e) or "Temporary failure in name resolution" in str(e):
-        return ("dns_error", url, "DNS Lookup Failed")
-    return ("conn_error", url, "Connection Error")
--  4. Simpan hasil HTTPS/HTTP yang sukses sebelumnya, jadi next run gak harus coba dua-duanya lagi
+ISSUE :
+1. Bot blocked
+- unakan library yang bisa simulasi browser (kalau perlu)
+- httpx — lebih powerful dari requests
+- undetected-chromedriver — jalanin Chrome headless (berat)
 - PING
 from ping3 import ping
 import requests
@@ -45,10 +38,8 @@ else:
 
 
 
-Mengatur Timeout dan Retry
-Menggunakan Rotating Proxies
-Menggunakan Selenium
-Bypass Tantangan: cloudscraper
-
-
-enanganan cloudscraper Failure
+- Menggunakan Rotating Proxies (berbayar kayaknya)
+- Headless Browser (Playwright, Puppeteer, Selenium)
+- Bypass Tantangan: cloudscraper
+- Menanganan cloudscraper Failure
+- Bypass SafeLine
