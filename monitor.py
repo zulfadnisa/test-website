@@ -17,7 +17,7 @@ import csv
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-FILENAME = "urls400.txt"
+FILENAME = "urls.txt"
 
 # TELEGRAM_TOKEN = "8230391711:AAHDTs5V_jINFBW3VzLDsKhaN6mamZmoVTs"
 # CHAT_ID = "394771936"
