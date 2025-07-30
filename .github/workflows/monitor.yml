@@ -31,9 +31,9 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python monitor.py
 
-      - name: Upload Report
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: website-report
-          path: log_*.csv  # Use a wildcard to match the timestamped filename
+      # - name: Upload Report
+      #   if: always()
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: website-report
+      #     path: log_*.csv  # Use a wildcard to match the timestamped filename
