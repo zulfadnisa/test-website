@@ -14,12 +14,12 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
 # === KONFIGURASI ===
-# TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-# CHAT_ID = os.getenv("CHAT_ID")
-# FILENAME = "urls.txt"
-TELEGRAM_TOKEN = "8230391711:AAHDTs5V_jINFBW3VzLDsKhaN6mamZmoVTs"
-CHAT_ID = "394771936"
-FILENAME = "urls50.txt"
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
+FILENAME = "urls400.txt"
+# TELEGRAM_TOKEN = "8230391711:AAHDTs5V_jINFBW3VzLDsKhaN6mamZmoVTs"
+# CHAT_ID = "394771936"
+# FILENAME = "urls50.txt"
 LOG_FILENAME = "log.txt"
 MAX_WORKERS = 10  # Increased from 6 to 10 for better parallelism
 MIN_DELAY = 0.5  # Minimum delay between requests in seconds
