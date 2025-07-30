@@ -42,3 +42,13 @@ if ping(host, timeout=2) is None:
     print(f"[PING] {host} is DOWN")
 else:
     print(f"[PING] {host} is UP")
+
+
+
+Mengatur Timeout dan Retry
+Menggunakan Rotating Proxies
+Menggunakan Selenium
+Bypass Tantangan: cloudscraper
+
+
+enanganan cloudscraper Failure
