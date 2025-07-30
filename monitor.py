@@ -240,9 +240,10 @@ def check_websites_parallel(urls):
 
 # === REPORT ===
 def create_csv_report(results,timestamp):
+    filename = f"log_{timestamp}.csv"  # Create a timestamped filename
     headers = ['URL', 'Status', 'Details']
     
-    with open(f"{timestamp} - {LOG_FILENAME}", mode='w', newline='', encoding='utf-8') as file:
+    with open(filename, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow(headers)
         
@@ -252,6 +253,8 @@ def create_csv_report(results,timestamp):
                 result['status'],
                 result['message']
             ])
+    
+    return filename  # Return the filename for later use
 
 def generate_telegram_header(results):
     """Generate summary counts for Telegram message header"""
@@ -294,13 +297,13 @@ def create_report(duration,results):
 
     # with open(LOG_FILENAME, "w", encoding="utf-8") as f:
     #     f.write("\n".join(results))
-    create_csv_report(results,timestamp)
+    csv_filename = create_csv_report(results,timestamp)
 
     send_telegram(f"{header} \nSee attached log file.")
-    send_telegram_file(LOG_FILENAME)
+    send_telegram_file(csv_filename)
         
-    if os.path.exists(LOG_FILENAME):
-        os.remove(LOG_FILENAME)
+    if os.path.exists(csv_filename):
+        os.remove(csv_filename)
 
 # === MAIN EXECUTION ===
 def main():
