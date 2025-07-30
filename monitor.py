@@ -6,13 +6,20 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed #pararel
 import random
 from requests.exceptions import SSLError
-import cloudscraper
+# import cloudscraper
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 # === KONFIGURASI ===
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
-FILENAME = "urls400.txt"
-# FILENAME = "urls200.txt"
+# TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+# CHAT_ID = os.getenv("CHAT_ID")
+# FILENAME = "urls.txt"
+TELEGRAM_TOKEN = "8230391711:AAHDTs5V_jINFBW3VzLDsKhaN6mamZmoVTs"
+CHAT_ID = "394771936"
+FILENAME = "urls50.txt"
 LOG_FILENAME = "log.txt"
 MAX_WORKERS = 10  # Increased from 6 to 10 for better parallelism
 MIN_DELAY = 0.5  # Minimum delay between requests in seconds
@@ -103,20 +110,50 @@ def try_request(url):
                 allow_redirects=True
             )
             # If blocked, try with cloudscraper
-            if response.status_code in [403, 429, 468]:
-                time.sleep(random.uniform(1, 3))  # Longer delay for retry
-                scraper = cloudscraper.create_scraper()
-                response = scraper.get(
-                    scheme + base_url,
-                    timeout=timeout,
-                    headers=get_random_headers()
-                )
+            # if response.status_code in [403, 429, 468]:
+            #     time.sleep(random.uniform(1, 3))  # Longer delay for retry
+            #     scraper = cloudscraper.create_scraper()
+            #     response = scraper.get(
+            #         scheme + base_url,
+            #         timeout=timeout,
+            #         headers=get_random_headers()
+            #     )
                 
             return response
             
         except requests.exceptions.RequestException:
             continue        
     raise requests.exceptions.ConnectionError(f"Failed to connect to {url}")
+
+def check_with_selenium(url):
+    options = Options()
+    options.add_argument("--headless")  # Run in headless mode
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(url)
+        
+        time.sleep(random.uniform(MIN_DELAY, MAX_DELAY))
+        status_code = driver.execute_script("return document.readyState;")
+        
+        # Check if page loaded successfully
+        if status_code == "complete":
+           return ("success", url, None)
+        else:
+            # Check for bot protection pages
+            page_source = driver.page_source.lower()
+            if "cloudflare" in page_source or "access denied" in page_source:
+                return ("bot_block", url, "Cloudflare block (via Selenium)")
+            elif "safeline" in page_source or "/.safeline/" in page_source:
+                return ("bot_block", url, "Safeline block (via Selenium)")
+            return ("error", url, f"Selenium error ({status_code})")  
+    except Exception as e:
+        return ("error", url, f"Selenium error: {str(e)}")
+    finally:
+        if 'driver' in locals():
+            driver.quit()
 
 def check_single_website(url):
     try:
@@ -126,12 +163,16 @@ def check_single_website(url):
         if 200 <= status_code < 400:
             return ("success", url, None)
         elif status_code in [403, 468]:
-            if any(x in response.text.lower() for x in ["cloudflare", "access denied"]):
-                return ("bot_block", url, f"Bot-blocked ({status_code})")
-            elif any(x in response.text.lower() for x in ["safeline", "/.safeline/"]):
-                return ("bot_block", url, f"SafeLine block ({status_code})")
-            else:
-                return ("error", url, f"Access denied ({status_code})")
+            # if any(x in response.text.lower() for x in ["cloudflare", "access denied"]):
+            #     return ("bot_block", url, f"Bot-blocked ({status_code})")
+            # elif any(x in response.text.lower() for x in ["safeline", "/.safeline/"]):
+            #     return ("bot_block", url, f"SafeLine block ({status_code})")
+            # else:
+            #     return ("error", url, f"Access denied ({status_code})")
+           # If blocked, try with Selenium
+            print(f'start selenium from {response.url}')
+            selenium_result = check_with_selenium(response.url)
+            return selenium_result  # Return the result from Selenium check
         else:
             return ("error", url, f"HTTP Error ({status_code})")
     except requests.exceptions.Timeout:
