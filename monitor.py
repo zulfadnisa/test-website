@@ -12,15 +12,18 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+import csv
 
 # === KONFIGURASI ===
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-FILENAME = "urls.txt"
+FILENAME = "urls400.txt"
+
 # TELEGRAM_TOKEN = "8230391711:AAHDTs5V_jINFBW3VzLDsKhaN6mamZmoVTs"
 # CHAT_ID = "394771936"
 # FILENAME = "urls50.txt"
-LOG_FILENAME = "log.txt"
+
+LOG_FILENAME = "log.csv"
 MAX_WORKERS = 10  # Increased from 6 to 10 for better parallelism
 MIN_DELAY = 0.5  # Minimum delay between requests in seconds
 MAX_DELAY = 2.0  # Maximum delay between requests in seconds
@@ -86,8 +89,12 @@ def send_telegram_file(filename, caption="Log"):
         with open(filename, 'rb') as f:
             files = {'document': f}
             data = {'chat_id': CHAT_ID, 'caption': caption}
-            requests.post(url, data=data, files=files, timeout=15)
-    except Exception as e:
+            response = requests.post(url, data=data, files=files, timeout=15)
+            response.raise_for_status()
+            print("✅ File sent successfully:", response.json())  # Print response for debugging
+    except FileNotFoundError:
+        print(f"⚠️ File not found: {filename}")
+    except requests.exceptions.RequestException as e:
         print(f"⚠️ Failed to send file via Telegram: {e}")
 
 # === CORE MONITORING FUNCTIONS ===
@@ -161,7 +168,8 @@ def check_single_website(url):
         status_code = response.status_code
         
         if 200 <= status_code < 400:
-            return ("success", url, None)
+            # return ("success", url, None)
+            return {'url': url, 'status': 'success', 'message': None}
         elif status_code in [403, 468]:
             # if any(x in response.text.lower() for x in ["cloudflare", "access denied"]):
             #     return ("bot_block", url, f"Bot-blocked ({status_code})")
@@ -172,25 +180,83 @@ def check_single_website(url):
            # If blocked, try with Selenium
             print(f'start selenium from {response.url}')
             selenium_result = check_with_selenium(response.url)
-            return selenium_result  # Return the result from Selenium check
+            # return selenium_result  # Return the result from Selenium check
+            return {'url': url, 'status': selenium_result[0], 'message': selenium_result[2]}
         else:
-            return ("error", url, f"HTTP Error ({status_code})")
+            # return ("error", url, f"HTTP Error ({status_code})")
+            return {'url': url, 'status': 'error', 'message': f"HTTP Error ({status_code})"}
     except requests.exceptions.Timeout:
-        return ("timeout", url, "Timeout")
+        return {'url': url, 'status': 'timeout', 'message':"Timeout"}
+        # return ("timeout", url, "Timeout")
     except requests.exceptions.SSLError:
-        return ("ssl_error", url, "SSL Error")
+        return {'url': url, 'status': 'ssl_error', 'message':"SSL Error"}
+        # return ("ssl_error", url, "SSL Error")
     except requests.exceptions.ConnectionError as e:
         msg = str(e).lower()
         if any(x in msg for x in ["dns", "name resolution", "nodename"]):
-            return ("dns_error", url, "DNS Error")
+            return {'url': url, 'status': 'dns_error', 'message':"DNS Error"}
+            # return ("dns_error", url, "DNS Error")
         else:
-            return ("conn_error", url, "Connection Error")
+           return {'url': url, 'status': 'conn_error', 'message':"Connection Error"}
+            # return ("conn_error", url, "Connection Error")
     except Exception as e:
-        return ("other_error", url, f"{type(e).__name__}: {str(e)}")
+        return {'url': url, 'status': 'other_error', 'message': f"{type(e).__name__}: {str(e)}"}
+        # return ("other_error", url, f"{type(e).__name__}: {str(e)}")
 
 def check_websites_parallel(urls):
     results = []
+    # counters = {
+    #     "success": 0,
+    #     "timeout": 0,
+    #     "conn_error": 0,
+    #     "bot_block": 0,
+    #     "error": 0,
+    #     "ssl_error": 0,
+    #     "dns_error": 0,
+    #     "redirect_error": 0,
+    #     "other_error": 0
+    # }
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(check_single_website, url): url for url in urls}
+        
+        for future in as_completed(futures):
+            results.append(future.result())
+            # status, url, message = future.result()
+            # counters[status] += 1
+            # if status != "success":
+            #     icons = {
+            #         'timeout': '⏰',
+            #         'conn_error': '🔌',
+            #         'bot_block': '🤖',
+            #         'ssl_error': '🔒',
+            #         'dns_error': '🌐',
+            #         'redirect_error': '🔄',
+            #         'other_error': '⚠️'
+            #     }
+            #     icon = icons.get(status, '❌')
+            #     results.append(f"{icon} {url} - {message}")
+    return results
+
+# === REPORT ===
+def create_csv_report(results,timestamp):
+    headers = ['URL', 'Status', 'Details']
+    
+    with open(f"{timestamp} - {LOG_FILENAME}", mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow(headers)
+        
+        for result in results:
+            writer.writerow([
+                result['url'],
+                result['status'],
+                result['message']
+            ])
+
+def generate_telegram_header(results):
+    """Generate summary counts for Telegram message header"""
     counters = {
+        'total': len(results),
         "success": 0,
         "timeout": 0,
         "conn_error": 0,
@@ -201,36 +267,21 @@ def check_websites_parallel(urls):
         "redirect_error": 0,
         "other_error": 0
     }
+    for result in results:
+        status = result['status']
+        counters[status]+=1
+    return counters
 
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {executor.submit(check_single_website, url): url for url in urls}
-        
-        for future in as_completed(futures):
-            status, url, message = future.result()
-            counters[status] += 1
-            if status != "success":
-                icons = {
-                    'timeout': '⏰',
-                    'conn_error': '🔌',
-                    'bot_block': '🤖',
-                    'ssl_error': '🔒',
-                    'dns_error': '🌐',
-                    'redirect_error': '🔄',
-                    'other_error': '⚠️'
-                }
-                icon = icons.get(status, '❌')
-                results.append(f"{icon} {url} - {message}")
-    return results, counters
-
-def create_report(duration,total_urls,counters,results):
+def create_report(duration,results):
     now = datetime.now(ZoneInfo("Asia/Jakarta"))
     timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    counters = generate_telegram_header(results)
     header = (
         f"📡 <b>Website Monitoring Report</b>\n\n"
         f"<i>{timestamp}</i>\n"
         f"<b>Running time:</b> {duration:.2f} seconds\n\n"
-        f"<b>Successful:</b> {counters['success']}/{total_urls}\n"
-        f"<b>Issues:</b> {total_urls - counters['success']}\n\n"
+        f"<b>Successful:</b> {counters['success']}/{counters['total']}\n"
+        f"<b>Issues:</b> {counters['total'] - counters['success']}\n\n"
         f"<b>Details:</b>\n"
         f"  ⏰ Timeout: {counters['timeout']}\n"
         f"  🔌 Connection Error: {counters['conn_error']}\n"
@@ -241,8 +292,9 @@ def create_report(duration,total_urls,counters,results):
         f"  ⚠️ Other Errors: {counters['other_error'] + counters['error']}\n"
     )
 
-    with open(LOG_FILENAME, "w", encoding="utf-8") as f:
-        f.write("\n".join(results))
+    # with open(LOG_FILENAME, "w", encoding="utf-8") as f:
+    #     f.write("\n".join(results))
+    create_csv_report(results,timestamp)
 
     send_telegram(f"{header} \nSee attached log file.")
     send_telegram_file(LOG_FILENAME)
@@ -263,11 +315,11 @@ def main():
         urls = load_urls_from_file()
         print(f"🔗 Loaded {len(urls)} URLs to check")
         
-        results, counters = check_websites_parallel(urls)
+        results = check_websites_parallel(urls)
         duration = time.time() - start_time
         
         print(f"✅ Completed in {duration:.2f} seconds")
-        create_report(duration, len(urls), counters, results)
+        create_report(duration, results)
         
     except Exception as e:
         error_msg = f"❌ Critical error in main execution: {str(e)}"
